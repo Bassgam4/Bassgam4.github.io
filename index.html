@@ -2,184 +2,199 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Panel Medibot</title>
-
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+<title>Biblioteca</title>
 
 <style>
-body {
-  background: linear-gradient(to bottom right, #e0f2f1, #b2dfdb);
-}
-.menu-btn.active {
-  background-color: #0d9488;
-  color: white;
-}
-</style>
+  body {
+    font-family: Arial;
+    background: #0f172a;
+    color: white;
+    text-align: center;
+  }
 
+  h2 {
+    margin-top: 20px;
+  }
+
+  .container {
+    width: 90%;
+    margin: auto;
+    margin-top: 20px;
+  }
+
+  input {
+    padding: 10px;
+    width: 250px;
+    border-radius: 8px;
+    border: none;
+    margin-right: 10px;
+  }
+
+  button {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 8px;
+    background: #3b82f6;
+    color: white;
+    cursor: pointer;
+    margin: 5px;
+  }
+
+  button:hover {
+    background: #2563eb;
+  }
+
+  table {
+    width: 100%;
+    margin-top: 20px;
+    border-collapse: collapse;
+    background: #1e293b;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  th, td {
+    padding: 12px;
+  }
+
+  th {
+    background: #334155;
+  }
+
+  tr:nth-child(even) {
+    background: #1e293b;
+  }
+
+  tr:nth-child(odd) {
+    background: #0f172a;
+  }
+
+</style>
 </head>
 
-<body class="p-6">
+<body>
 
-<h1 class="text-4xl font-bold text-teal-700 text-center mb-8"> Panel Admin – Medibot</h1>
+<h2>Biblioteca Ajuchitlancito</h2>
 
-<div class="flex justify-center gap-4 mb-8">
-    <button class="menu-btn px-4 py-2 bg-white rounded-lg shadow hover:bg-teal-100" onclick="show('buscar')">🔍 Buscar estudiante</button>
-    <button class="menu-btn px-4 py-2 bg-white rounded-lg shadow hover:bg-teal-100" onclick="show('asociar')">👤 Asociar matrícula</button>
-    <button class="menu-btn px-4 py-2 bg-white rounded-lg shadow hover:bg-teal-100" onclick="show('lista')">📄 Lista completa</button>
+<div class="container">
+
+  <!-- 🔍 Buscador -->
+  <input type="text" id="busqueda" placeholder="Buscar libro...">
+  <button onclick="buscar()">Buscar</button>
+  <button onclick="reset()">Reset</button>
+
+  <!-- 📊 Tabla -->
+  <table>
+    <thead>
+      <tr>
+        <th>No</th>
+        <th>Autor</th>
+        <th>Título</th>
+        <th>Clasificación</th>
+      </tr>
+    </thead>
+    <tbody id="tablaLibros"></tbody>
+  </table>
+
+  <!-- 🔄 Paginación -->
+  <div>
+    <button onclick="anterior()">Anterior</button>
+    <button onclick="siguiente()">Siguiente</button>
+  </div>
+
 </div>
 
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-<div id="buscar" class="section hidden max-w-2xl mx-auto bg-white p-6 rounded-2xl shadow-xl border border-teal-300">
-    <h2 class="text-2xl font-semibold text-teal-700 mb-4"> Buscar estudiante</h2>
+const firebaseConfig = {
+  apiKey: "AIzaSyDMquvNT9DeRw55Bi0C_shiH399GR8IWEE",
+  authDomain: "biblioteca-556de.firebaseapp.com",
+  databaseURL: "https://biblioteca-556de-default-rtdb.firebaseio.com",
+  projectId: "biblioteca-556de",
+  storageBucket: "biblioteca-556de.firebasestorage.app",
+  messagingSenderId: "600663910838",
+  appId: "1:600663910838:web:fa565071e582584532b917"
+};
 
-    <input id="buscarMat" placeholder="Escribe matrícula"
-        class="w-full p-3 border rounded-lg mb-4 focus:ring-2 focus:ring-teal-500">
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
-    <button onclick="buscarEst()"
-        class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700">Buscar</button>
+let libros = [];
+let filtrados = [];
+let pagina = 0;
+const limite = 15;
 
-    <div id="resultadoBuscar" class="mt-6"></div>
-</div>
-
-
-<div id="asociar" class="section hidden max-w-xl mx-auto bg-white p-6 rounded-2xl shadow-xl border border-teal-300">
-    <h2 class="text-2xl font-semibold text-teal-700 mb-4"> Asociar matrícula con nombre</h2>
-
-    <input id="asMat" placeholder="Matrícula"
-        class="w-full p-3 border mb-4 rounded-lg focus:ring-2 focus:ring-teal-500">
-
-    <input id="asNom" placeholder="Nombre del estudiante"
-        class="w-full p-3 border mb-4 rounded-lg focus:ring-2 focus:ring-teal-500">
-
-    <button onclick="asociarNombre()"
-        class="bg-teal-600 text-white w-full py-2 rounded-lg hover:bg-teal-700">Guardar asociación</button>
-
-    <p id="asMsg" class="mt-4 text-teal-700 font-semibold"></p>
-</div>
-
-
-<div id="lista" class="section hidden max-w-3xl mx-auto bg-white p-6 rounded-2xl shadow-xl border border-teal-300">
-    <h2 class="text-2xl font-semibold text-teal-700 mb-4">📄 Lista completa de estudiantes</h2>
-
-    <button onclick="cargarLista()"
-        class="mb-4 bg-teal-500 text-white px-4 py-2 rounded-lg hover:bg-teal-600">Actualizar lista</button>
-
-    <div id="tablaLista"></div>
-</div>
-
-
-
-<script>
- const firebaseConfig = {
-    apiKey: "AIzaSyB6MzvXECB-kp83HPMQBZI8M7c-x5gST5w",
-    authDomain: "practicaesp32-5b317.firebaseapp.com",
-    databaseURL: "https://practicaesp32-5b317-default-rtdb.firebaseio.com",
-    projectId: "practicaesp32-5b317",
-    storageBucket: "practicaesp32-5b317.firebasestorage.app",
-    messagingSenderId: "274551705526",
-    appId: "1:274551705526:web:73746b3bcf6e480e543b17",
-    measurementId: "G-9J47PZ5115"
-  };
-
-firebase.initializeApp(firebaseConfig);
-
-const db = firebase.database();
-const base = "Estudiantes";
-
-function show(id) {
-  document.querySelectorAll(".section").forEach(e => e.classList.add("hidden"));
-  document.getElementById(id).classList.remove("hidden");
-
-  document.querySelectorAll(".menu-btn").forEach(b => b.classList.remove("active"));
-  event.target.classList.add("active");
+// 🔹 Cargar datos
+async function cargarLibros() {
+  const snapshot = await get(ref(db, "libros"));
+  if (snapshot.exists()) {
+    libros = Object.values(snapshot.val());
+    filtrados = libros;
+    render();
+  }
 }
 
+// 🔹 Renderizar (REEMPLAZA contenido)
+function render() {
+  const tabla = document.getElementById("tablaLibros");
+  tabla.innerHTML = "";
 
+  const inicio = pagina * limite;
+  const fin = inicio + limite;
 
-function buscarEst() {
-    const m = document.getElementById("buscarMat").value.trim();
-    const out = document.getElementById("resultadoBuscar");
-
-    if (!m) return alert("Ingresa una matrícula");
-
-    db.ref(`${base}/${m}`).once("value", snap => {
-        const data = snap.val();
-
-        if (!data) {
-            out.innerHTML = `<p class="text-red-600 font-semibold">No existe esta matrícula</p>`;
-            return;
-        }
-
-        let html = `
-            <div class="p-4 bg-teal-50 rounded-xl border border-teal-300">
-                <h3 class="text-xl font-semibold text-teal-700">👤 ${data.nombre || "Sin nombre asignado"}</h3>
-                <p class="text-gray-700"><b>Matrícula:</b> ${m}</p>
-                <h4 class="font-semibold text-teal-600 mt-3">Respuestas:</h4>
-        `;
-
-        Object.keys(data).forEach(k => {
-            if (k.startsWith("r"))
-                html += `<p class="text-gray-700"><b>${k}:</b> ${data[k]}</p>`;
-        });
-
-        html += `</div>`;
-
-        out.innerHTML = html;
-    });
+  filtrados.slice(inicio, fin).forEach(libro => {
+    tabla.innerHTML += `
+      <tr>
+        <td>${libro.no}</td>
+        <td>${libro.autor}</td>
+        <td>${libro.titulo}</td>
+        <td>${libro.clasificacion}</td>
+      </tr>
+    `;
+  });
 }
 
-function asociarNombre() {
-    const m = document.getElementById("asMat").value.trim();
-    const n = document.getElementById("asNom").value.trim();
-    const msg = document.getElementById("asMsg");
+// 🔹 Paginación
+window.siguiente = function() {
+  if ((pagina + 1) * limite < filtrados.length) {
+    pagina++;
+    render();
+  }
+};
 
-    if (!m || !n) return alert("Completa todos los campos");
+window.anterior = function() {
+  if (pagina > 0) {
+    pagina--;
+    render();
+  }
+};
 
-    db.ref(`${base}/${m}/nombre`).set(n).then(() => {
-        msg.innerText = "Nombre guardado correctamente ✔";
-    });
-}
+// 🔍 Buscar
+window.buscar = function() {
+  const texto = document.getElementById("busqueda").value.toLowerCase();
+  pagina = 0;
 
+  filtrados = libros.filter(libro =>
+    libro.autor.toLowerCase().includes(texto) ||
+    libro.titulo.toLowerCase().includes(texto)
+  );
 
+  render();
+};
 
-function cargarLista() {
-    db.ref(base).once("value", snap => {
+// 🔄 Reset
+window.reset = function() {
+  document.getElementById("busqueda").value = "";
+  filtrados = libros;
+  pagina = 0;
+  render();
+};
 
-        let html = `
-        <table class="w-full border-collapse">
-            <tr class="bg-teal-600 text-white">
-                <th class="p-2 border">Matrícula</th>
-                <th class="p-2 border">Nombre</th>
-                <th class="p-2 border">Respuestas</th>
-            </tr>
-        `;
+// 🚀 Inicio
+cargarLibros();
 
-        snap.forEach(est => {
-            const m = est.key;
-            const val = est.val();
-            const nombre = val.nombre || "Sin nombre";
-
-            let resp = "";
-            Object.keys(val).forEach(k => {
-                if (k.startsWith("r")) resp += `<b>${k}:</b> ${val[k]}<br>`;
-            });
-
-            html += `
-            <tr class="border hover:bg-teal-50">
-                <td class="p-2 border">${m}</td>
-                <td class="p-2 border">${nombre}</td>
-                <td class="p-2 border">${resp}</td>
-            </tr>
-            `;
-        });
-
-        html += `</table>`;
-
-        document.getElementById("tablaLista").innerHTML = html;
-    });
-}
 </script>
 
 </body>
