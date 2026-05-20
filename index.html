@@ -149,8 +149,8 @@ function render() {
       <tr>
         <td>${libro.no}</td>
         <td>${libro.autor}</td>
-        <td>${libro.titulo}</td>
-        <td>${libro.clasificacion}</td>
+        <td>${libro.título}</td>
+        <td>${libro.clasificación}</td>
       </tr>
     `;
   });
@@ -181,8 +181,8 @@ window.buscar = function() {
       String(libro.no || "").toLowerCase().includes(texto) ||
       String(libro.nt || "").toLowerCase().includes(texto) ||
       String(libro.autor || "").toLowerCase().includes(texto) ||
-      String(libro.titulo || "").toLowerCase().includes(texto) ||
-      String(libro.clasificacion || "").toLowerCase().includes(texto)
+      String(libro.título || "").toLowerCase().includes(texto) ||
+      String(libro.clasificación || "").toLowerCase().includes(texto)
     );
   });
 
