@@ -10,6 +10,24 @@
     background: #0f172a;
     color: white;
     text-align: center;
+    margin: 0;
+  }
+
+  /* NAVBAR */
+  .navbar {
+    background: #1e293b;
+    padding: 15px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .navbar button {
+    background: #334155;
+  }
+
+  .navbar button.active {
+    background: #3b82f6;
   }
 
   h2 {
@@ -22,7 +40,7 @@
     margin-top: 20px;
   }
 
-  input {
+  input[type="text"] {
     padding: 10px;
     width: 250px;
     border-radius: 8px;
@@ -69,21 +87,66 @@
     background: #0f172a;
   }
 
+  /* MODAL */
+  .modal {
+    display: none;
+    position: fixed;
+    z-index: 100;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.7);
+  }
+
+  .modal-content {
+    background: #1e293b;
+    margin: 5% auto;
+    padding: 20px;
+    width: 80%;
+    max-height: 80vh;
+    overflow-y: auto;
+    border-radius: 10px;
+    text-align: left;
+  }
+
+  .close {
+    float: right;
+    font-size: 25px;
+    cursor: pointer;
+  }
+
 </style>
 </head>
 
 <body>
 
+<!-- NAVBAR -->
+<div class="navbar">
+  <button id="modoBiblioteca" class="active" onclick="cambiarModo('biblioteca')">
+    Biblioteca
+  </button>
+
+  <button id="modoConteo" onclick="cambiarModo('conteo')">
+    Conteo
+  </button>
+</div>
+
 <h2>Biblioteca Ajuchitlancito</h2>
 
 <div class="container">
 
-  <!-- 🔍 Buscador -->
+  <!-- BUSCADOR -->
   <input type="text" id="busqueda" placeholder="Buscar libro...">
   <button onclick="buscar()">Buscar</button>
-  <button onclick="reset()">Reset</button>
+  <button onclick="resetBusqueda()">Reset</button>
 
-  <!-- 📊 Tabla -->
+  <!-- BOTON RESUMEN -->
+  <button id="btnResumen" style="display:none;" onclick="mostrarResumen()">
+    Resumen
+  </button>
+
+  <!-- TABLA -->
   <table>
     <thead>
       <tr>
@@ -91,12 +154,14 @@
         <th>Autor</th>
         <th>Título</th>
         <th>Clasificación</th>
+        <th id="colConteo" style="display:none;">¿Está?</th>
       </tr>
     </thead>
+
     <tbody id="tablaLibros"></tbody>
   </table>
 
-  <!-- 🔄 Paginación -->
+  <!-- PAGINACION -->
   <div>
     <button onclick="anterior()">Anterior</button>
     <button onclick="siguiente()">Siguiente</button>
@@ -104,100 +169,375 @@
 
 </div>
 
+<!-- MODAL -->
+<div id="modal" class="modal">
+  <div class="modal-content">
+
+    <span class="close" onclick="cerrarModal()">&times;</span>
+
+    <h2>Resumen de Conteo</h2>
+
+    <p id="totalLibros"></p>
+    <p id="librosEncontrados"></p>
+    <p id="librosFaltantes"></p>
+
+    <h3>Libros faltantes:</h3>
+
+    <ul id="listaFaltantes"></ul>
+
+  </div>
+</div>
+
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+import { initializeApp }
+from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+
+import {
+  getDatabase,
+  ref,
+  get,
+  set
+}
+from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDMquvNT9DeRw55Bi0C_shiH399GR8IWEE",
+
+  apiKey: "TU_API_KEY",
+
   authDomain: "biblioteca-556de.firebaseapp.com",
-  databaseURL: "https://biblioteca-556de-default-rtdb.firebaseio.com",
+
+  databaseURL:
+    "https://biblioteca-556de-default-rtdb.firebaseio.com",
+
   projectId: "biblioteca-556de",
-  storageBucket: "biblioteca-556de.firebasestorage.app",
+
+  storageBucket:
+    "biblioteca-556de.firebasestorage.app",
+
   messagingSenderId: "600663910838",
-  appId: "1:600663910838:web:fa565071e582584532b917"
+
+  appId:
+    "1:600663910838:web:fa565071e582584532b917"
 };
 
 const app = initializeApp(firebaseConfig);
+
 const db = getDatabase(app);
 
 let libros = [];
 let filtrados = [];
 let pagina = 0;
+let modo = "biblioteca";
+
 const limite = 15;
 
-// 🔹 Cargar datos
+//////////////////////////////////////////////////////////
+// CARGAR LIBROS + CONTEO
+//////////////////////////////////////////////////////////
+
 async function cargarLibros() {
+
+  // cargar libros
   const snapshot = await get(ref(db, "libros"));
+
+  // cargar conteo guardado
+  const conteoSnapshot = await get(ref(db, "conteo"));
+
+  const conteo = conteoSnapshot.exists()
+    ? conteoSnapshot.val()
+    : {};
+
   if (snapshot.exists()) {
+
     libros = Object.values(snapshot.val());
-    filtrados = libros;
+
+    libros = libros.map(libro => ({
+
+      ...libro,
+
+      // recuperar estado guardado
+      presente: conteo[libro.no]?.presente || false
+    }));
+
+    filtrados = [...libros];
+
     render();
   }
 }
 
-// 🔹 Renderizar (REEMPLAZA contenido)
+//////////////////////////////////////////////////////////
+// RENDER
+//////////////////////////////////////////////////////////
+
 function render() {
-  const tabla = document.getElementById("tablaLibros");
+
+  const tabla =
+    document.getElementById("tablaLibros");
+
   tabla.innerHTML = "";
 
   const inicio = pagina * limite;
   const fin = inicio + limite;
 
-  filtrados.slice(inicio, fin).forEach(libro => {
-    tabla.innerHTML += `
-      <tr>
-        <td>${libro.no}</td>
-        <td>${libro.autor}</td>
-        <td>${libro.título}</td>
-        <td>${libro.clasificación}</td>
-      </tr>
-    `;
-  });
+  filtrados
+    .slice(inicio, fin)
+    .forEach((libro, index) => {
+
+      tabla.innerHTML += `
+        <tr>
+
+          <td>${libro.no}</td>
+
+          <td>${libro.autor}</td>
+
+          <td>${libro.título}</td>
+
+          <td>${libro.clasificación}</td>
+
+          ${
+            modo === "conteo"
+            ? `
+              <td>
+                <input
+                  type="checkbox"
+                  ${libro.presente ? "checked" : ""}
+                  onchange="toggleLibro(${inicio + index}, this.checked)"
+                >
+              </td>
+            `
+            : ""
+          }
+
+        </tr>
+      `;
+    });
 }
 
-// 🔹 Paginación
+//////////////////////////////////////////////////////////
+// CAMBIAR MODO
+//////////////////////////////////////////////////////////
+
+window.cambiarModo = function(nuevoModo) {
+
+  modo = nuevoModo;
+
+  document
+    .getElementById("modoBiblioteca")
+    .classList.remove("active");
+
+  document
+    .getElementById("modoConteo")
+    .classList.remove("active");
+
+  if (modo === "conteo") {
+
+    document
+      .getElementById("modoConteo")
+      .classList.add("active");
+
+    document
+      .getElementById("colConteo")
+      .style.display = "";
+
+    document
+      .getElementById("btnResumen")
+      .style.display = "";
+
+  } else {
+
+    document
+      .getElementById("modoBiblioteca")
+      .classList.add("active");
+
+    document
+      .getElementById("colConteo")
+      .style.display = "none";
+
+    document
+      .getElementById("btnResumen")
+      .style.display = "none";
+  }
+
+  render();
+};
+
+//////////////////////////////////////////////////////////
+// GUARDAR CHECKBOX EN FIREBASE
+//////////////////////////////////////////////////////////
+
+window.toggleLibro = async function(index, estado) {
+
+  const libro = filtrados[index];
+
+  // actualizar en filtrados
+  libro.presente = estado;
+
+  // actualizar en libros
+  const original = libros.find(
+    l => l.no === libro.no
+  );
+
+  if (original) {
+    original.presente = estado;
+  }
+
+  // guardar en firebase
+  await set(
+    ref(db, `conteo/${libro.no}`),
+    {
+      presente: estado
+    }
+  );
+};
+
+//////////////////////////////////////////////////////////
+// PAGINACION
+//////////////////////////////////////////////////////////
+
 window.siguiente = function() {
+
   if ((pagina + 1) * limite < filtrados.length) {
+
     pagina++;
+
     render();
   }
 };
 
 window.anterior = function() {
+
   if (pagina > 0) {
+
     pagina--;
+
     render();
   }
 };
 
-// 🔍 Buscar
+//////////////////////////////////////////////////////////
+// BUSCAR
+//////////////////////////////////////////////////////////
+
 window.buscar = function() {
-  const texto = document.getElementById("busqueda").value.toLowerCase().trim();
+
+  const texto = document
+    .getElementById("busqueda")
+    .value
+    .toLowerCase()
+    .trim();
+
   pagina = 0;
 
   filtrados = libros.filter(libro => {
+
     return (
-      String(libro.no || "").toLowerCase().includes(texto) ||
-      String(libro.nt || "").toLowerCase().includes(texto) ||
-      String(libro.autor || "").toLowerCase().includes(texto) ||
-      String(libro.título || "").toLowerCase().includes(texto) ||
-      String(libro.clasificación || "").toLowerCase().includes(texto)
+
+      String(libro.no || "")
+      .toLowerCase()
+      .includes(texto)
+
+      ||
+
+      String(libro.autor || "")
+      .toLowerCase()
+      .includes(texto)
+
+      ||
+
+      String(libro.título || "")
+      .toLowerCase()
+      .includes(texto)
+
+      ||
+
+      String(libro.clasificación || "")
+      .toLowerCase()
+      .includes(texto)
     );
   });
 
   render();
 };
 
-// 🔄 Reset
-window.reset = function() {
-  document.getElementById("busqueda").value = "";
-  filtrados = libros;
+//////////////////////////////////////////////////////////
+// RESET BUSQUEDA
+//////////////////////////////////////////////////////////
+
+window.resetBusqueda = function() {
+
+  document
+    .getElementById("busqueda")
+    .value = "";
+
+  filtrados = [...libros];
+
   pagina = 0;
+
   render();
 };
 
-// 🚀 Inicio
+//////////////////////////////////////////////////////////
+// RESUMEN
+//////////////////////////////////////////////////////////
+
+window.mostrarResumen = function() {
+
+  const encontrados =
+    libros.filter(l => l.presente);
+
+  const faltantes =
+    libros.filter(l => !l.presente);
+
+  document
+    .getElementById("totalLibros")
+    .innerText =
+    `Total de libros: ${libros.length}`;
+
+  document
+    .getElementById("librosEncontrados")
+    .innerText =
+    `Libros encontrados: ${encontrados.length}`;
+
+  document
+    .getElementById("librosFaltantes")
+    .innerText =
+    `Libros faltantes: ${faltantes.length}`;
+
+  const lista =
+    document.getElementById("listaFaltantes");
+
+  lista.innerHTML = "";
+
+  faltantes.forEach(libro => {
+
+    lista.innerHTML += `
+      <li>
+        ${libro.no} - ${libro.título}
+      </li>
+    `;
+  });
+
+  document
+    .getElementById("modal")
+    .style.display = "block";
+};
+
+//////////////////////////////////////////////////////////
+// CERRAR MODAL
+//////////////////////////////////////////////////////////
+
+window.cerrarModal = function() {
+
+  document
+    .getElementById("modal")
+    .style.display = "none";
+};
+
+//////////////////////////////////////////////////////////
+// INICIO
+//////////////////////////////////////////////////////////
+
 cargarLibros();
 
 </script>
